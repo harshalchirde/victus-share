@@ -150,12 +150,15 @@ const CFG = {
   maxFileSize: 4 * 1024 ** 3,
   sessionSeconds: 600,
   idPrefix: 'victusshare-',
-  peerConfig: { iceServers: [
+  /* Pairing service. Default is the free public PeerJS cloud. */
+  peerServer: { host: '0.peerjs.com', port: 443, path: '/', secure: true, key: 'peerjs' },
+  rtc: { iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' }
     /* TURN later: { urls:'turn:your-host:3478', username:'user', credential:'pass' } */
   ] }
 };
+const peerOpts = () => Object.assign({}, CFG.peerServer, { config: CFG.rtc, debug: 1 });
 
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -217,12 +220,26 @@ $('pick').onchange = e => {
 };
 
 /* ---------- pairing (PeerJS) ---------- */
-const NOSERVER = ["Victus Share couldn't reach the pairing service. Check your internet connection and try again."];
+function pairError(e) {
+  const type = (e && e.type) || 'unknown';
+  console.error('Victus Share PeerJS error:', e);
+  if (type === 'peer-unavailable') return fail('Code not valid', "That code doesn't match an active session. It may have expired, or the sender closed the page. Check the digits and try again.");
+  if (type === 'webrtc') return fail('Connection failed', 'The two phones could not set up a direct connection. Try both on the same Wi-Fi, or turn off VPN. (' + type + ')');
+  if (type === 'browser-incompatible') return fail('Browser not supported', 'This browser does not support the required features. Use Safari on iPhone or Chrome on Android. (' + type + ')');
+  fail("Can't reach pairing service", "Victus Share couldn't reach the pairing service. Check your internet, turn off VPN or ad blockers, and try again. (" + type + ')');
+}
+function reconnectIfDropped(peer) {
+  peer.on('disconnected', () => {
+    if (S.peer !== peer || S.connected || peer.destroyed) return;
+    setTimeout(() => { try { if (S.peer === peer && !S.connected && !peer.destroyed) peer.reconnect(); } catch {} }, 1000);
+  });
+}
 
 function makeSender(tries) {
   const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
-  const peer = new Peer(CFG.idPrefix + code, { config: CFG.peerConfig });
+  const peer = new Peer(CFG.idPrefix + code, peerOpts());
   S.peer = peer; S.code = code;
+  reconnectIfDropped(peer);
   peer.on('open', () => { if (S.peer === peer) showCode(code); });
   peer.on('connection', conn => {
     if (S.peer !== peer || S.conn) { conn.close(); return; }
@@ -233,7 +250,7 @@ function makeSender(tries) {
   peer.on('error', e => {
     if (S.peer !== peer || S.connected) return;
     if (e.type === 'unavailable-id' && tries < 5) { try { peer.destroy(); } catch {} return makeSender(tries + 1); }
-    fail("Can't reach pairing service", NOSERVER[0]);
+    pairError(e);
   });
 }
 function showCode(code) {
@@ -247,7 +264,8 @@ function showCode(code) {
   S.exp = setTimeout(() => { if (!S.connected) fail('Session expired', 'Nobody joined in time. Start a new session.'); }, CFG.sessionSeconds * 1000);
 }
 function joinCode(c) {
-  const peer = new Peer({ config: CFG.peerConfig }); S.peer = peer;
+  const peer = new Peer(peerOpts()); S.peer = peer;
+  reconnectIfDropped(peer);
   S.to = setTimeout(() => { if (!S.connected) fail('Connection timed out', "The devices didn't connect within 25 seconds. Check both have internet access and try again. Strict networks may need a TURN relay."); }, 25000);
   peer.on('open', () => {
     if (S.peer !== peer) return;
@@ -255,11 +273,7 @@ function joinCode(c) {
     const conn = peer.connect(CFG.idPrefix + c, { reliable: true, serialization: 'raw' });
     S.conn = conn; wireConn(conn);
   });
-  peer.on('error', e => {
-    if (S.peer !== peer || S.connected) return;
-    if (e.type === 'peer-unavailable') fail('Code not valid', "That code doesn't match an active session. It may have expired. Check the digits and try again.");
-    else fail("Can't reach pairing service", NOSERVER[0]);
-  });
+  peer.on('error', e => { if (S.peer !== peer || S.connected) return; pairError(e); });
 }
 function wireConn(conn) {
   conn.on('open', () => {
@@ -271,7 +285,7 @@ function wireConn(conn) {
   });
   conn.on('data', onData);
   conn.on('close', () => { if (S.conn !== conn || S.finished) return; fail('Connection lost', 'The other device disconnected.'); });
-  conn.on('error', () => {});
+  conn.on('error', e => { if (S.conn !== conn || S.connected) return; pairError(e); });
 }
 async function reportPath() {
   try {
