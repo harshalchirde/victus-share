@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Victus Share — iPhone to Android File Sharing</title>
+<style>
+:root{--bg:#eef1f6;--card:#fff;--ink:#131a2b;--mute:#5b6478;--line:#d9dfea;--acc:#2350ff;--accink:#fff;--bar:#e3e8f2;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1220;--card:#161d30;--ink:#eef1fa;--mute:#98a2ba;--line:#26304a;--acc:#7e9bff;--accink:#0d1220;--bar:#26304a;--err:#ff8f88}}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+#app{min-height:100vh;min-height:100dvh;max-width:480px;margin:0 auto;display:flex;flex-direction:column;padding:calc(20px + env(safe-area-inset-top)) 20px calc(16px + env(safe-area-inset-bottom))}
+.brand{font-size:1.15rem;margin:0;font-weight:800;letter-spacing:-.02em;color:var(--ink)}.brand span{font-weight:300;margin-left:.3em}
+main{flex:1;display:flex;flex-direction:column;justify-content:center;padding:24px 0}
+[hidden]{display:none!important}
+h2{font-size:2rem;line-height:1.15;letter-spacing:-.03em;margin:0 0 8px;outline:none}
+p{margin:0 0 16px;color:var(--mute)}
+.stack{display:flex;flex-direction:column;gap:12px;margin-top:20px}
+.btn{appearance:none;border:1.5px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:700;min-height:56px;padding:0 20px;border-radius:16px;cursor:pointer;width:100%;touch-action:manipulation}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--accink)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:16px}
+ul.files{list-style:none;margin:16px 0 0;padding:0;max-height:36vh;overflow:auto;border-top:1px solid var(--line)}
+ul.files li{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);font-size:.95rem}
+ul.files .n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+ul.files .s{color:var(--mute);font-variant-numeric:tabular-nums;white-space:nowrap}
+ul.files .btn{min-height:40px;width:auto;padding:0 14px;border-radius:12px}
+.qr{background:#fff;border-radius:16px;padding:12px;width:min(72vw,260px);margin:16px auto}.qr svg{display:block;width:100%;height:auto}
+.code{font-size:2.8rem;font-weight:800;letter-spacing:.12em;text-align:center;font-variant-numeric:tabular-nums;margin:4px 0}
+.state{color:var(--ink);font-weight:600;text-align:center}.sub{text-align:center;font-size:.9rem}
+input[type=text]{width:100%;min-height:60px;font:inherit;font-size:1.7rem;font-weight:700;text-align:center;letter-spacing:.14em;border-radius:16px;border:1.5px solid var(--line);background:var(--card);color:var(--ink)}
+.bar{height:14px;background:var(--bar);border-radius:99px;overflow:hidden;margin:10px 0}.bar i{display:block;height:100%;width:0;background:var(--acc);border-radius:99px;transition:width .12s linear}
+.row{display:flex;justify-content:space-between;font-size:.95rem;color:var(--mute);font-variant-numeric:tabular-nums}
+.fname{font-weight:700;overflow-wrap:anywhere}
+.err{color:var(--err);font-weight:600;min-height:1.5em;margin:8px 0 0;text-align:center}
+video{width:100%;border-radius:16px;background:#000;max-height:50vh;object-fit:cover}
+.note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 14px;font-size:.85rem;color:var(--mute);margin-top:20px}
+footer{text-align:center;font-size:.78rem;color:var(--mute);padding-top:8px}footer b{color:var(--ink)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="app">
+<header><p class="brand">Victus<span>Share</span></p></header>
+<div id="live" class="sr" role="status" aria-live="polite"></div>
+<main>
+
+<section data-view="home">
+  <h2>Share photos &amp; videos between iPhone and Android.</h2>
+  <p>Fast. Private. Simple. No account required.</p>
+  <div id="unsupported" class="err" hidden>This browser can't do direct device-to-device transfer. Use Safari on iPhone or Chrome on Android.</div>
+  <div class="stack">
+    <button class="btn pri" id="goSend">Send files</button>
+    <button class="btn" id="goRecv">Receive files</button>
+  </div>
+  <div class="note">Files go straight from one device to the other. A free public pairing service (PeerJS) only helps the two devices find each other and never receives your files. Your files are not permanently stored by Victus Share.</div>
+</section>
+
+<section data-view="send" hidden>
+  <h2>Send files</h2>
+  <p>Choose the photos and videos to send.</p>
+  <input id="pick" class="sr" type="file" multiple accept="image/*,video/*,.heic,.heif,.mov,.mp4,.webm" tabindex="-1">
+  <button class="btn" id="pickBtn">Select photos &amp; videos</button>
+  <div class="card" style="margin-top:16px">
+    <div class="row"><span id="selCount">Nothing selected yet</span><span id="selSize"></span></div>
+    <ul class="files" id="selList"></ul>
+  </div>
+  <div class="err" id="serr" role="alert"></div>
+  <div class="stack">
+    <button class="btn pri" id="startShare" disabled>Start sharing</button>
+    <button class="btn" data-home>Back</button>
+  </div>
+</section>
+
+<section data-view="wait" hidden>
+  <h2>Waiting for receiver</h2>
+  <p class="sub">On the other phone, open Victus Share, choose Receive files, then scan this code.</p>
+  <div class="qr" id="qr" aria-label="QR code to join this transfer"></div>
+  <p class="sub" style="margin:0">Or enter this code</p>
+  <div class="code" id="codeOut" aria-label="Pairing code">------</div>
+  <p class="state">Creating session</p>
+  <p class="sub" id="expiry"></p>
+  <div class="stack"><button class="btn" data-home>Cancel</button></div>
+</section>
+
+<section data-view="recv" hidden>
+  <h2>Receive files</h2>
+  <p>Scan the sender's QR code or enter the 6-digit code.</p>
+  <div id="scanbox" hidden><video id="cam" playsinline muted></video><div class="stack"><button class="btn" id="stopScanBtn">Stop scanning</button></div></div>
+  <button class="btn" id="scanBtn">Scan QR code</button>
+  <p class="sub" style="margin:14px 0 8px">or</p>
+  <label class="sr" for="code">6-digit pairing code</label>
+  <input id="code" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="000 000" maxlength="7">
+  <div class="err" id="rerr" role="alert"></div>
+  <p class="state"></p>
+  <div class="stack">
+    <button class="btn pri" id="connectBtn">Connect</button>
+    <button class="btn" data-home>Back</button>
+  </div>
+</section>
+
+<section data-view="xfer" hidden>
+  <h2 id="xtitle">Transferring</h2>
+  <p class="state">Preparing transfer</p>
+  <p class="sub" id="path"></p>
+  <div class="card">
+    <div class="row"><span id="xcount">0 of 0 files</span><span id="xpct">0%</span></div>
+    <div class="fname" id="xname">—</div>
+    <div class="bar" role="progressbar" aria-label="Total progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="xbarw"><i id="xbar"></i></div>
+    <div class="row"><span id="xbytes">0 B / 0 B</span></div>
+    <div class="row" style="margin-top:8px"><span id="xspeed">Speed: —</span><span id="xeta">Estimated time: —</span></div>
+  </div>
+  <div class="note">Keep this screen on and this tab open until the transfer finishes.</div>
+  <div class="stack"><button class="btn" id="cancelX">Cancel transfer</button></div>
+</section>
+
+<section data-view="done" hidden>
+  <h2>Transfer complete</h2>
+  <p id="doneInfo"></p>
+  <ul class="files" id="doneList"></ul>
+  <div class="stack">
+    <button class="btn pri" id="dlAll">Download all</button>
+    <button class="btn" id="more">Share more files</button>
+    <button class="btn" id="doneBtn">Done</button>
+  </div>
+  <div class="note" id="recvNote">Files live in this tab only. Download them before you close it.</div>
+</section>
+
+<section data-view="msg" hidden>
+  <h2 id="mtitle">Something went wrong</h2>
+  <p id="mtext"></p>
+  <div class="stack"><button class="btn pri" id="mbtn">Try again</button></div>
+</section>
+
+</main>
+<footer><b>Victus Share</b><br>Developed by Harshal Chirde</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+(() => {
+'use strict';
+/* ---- Config ---- */
+const CFG = {
+  chunkSize: 65536,
+  maxFiles: 100,
+  maxFileSize: 4 * 1024 ** 3,
+  sessionSeconds: 600,
+  idPrefix: 'victusshare-',
+  peerConfig: { iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' }
+    /* TURN later: { urls:'turn:your-host:3478', username:'user', credential:'pass' } */
+  ] }
+};
+
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let S = { files: [] };
+
+const fmt = b => { if (b < 1024) return b + ' B'; const u = ['KB','MB','GB','TB']; let i = -1; do { b /= 1024; i++; } while (b >= 1024 && i < 3); return b.toFixed(b < 10 ? 2 : 1) + ' ' + u[i]; };
+const fmtT = s => !isFinite(s) ? '—' : s < 60 ? Math.ceil(s) + ' sec' : Math.floor(s / 60) + ' min ' + Math.ceil(s % 60) + ' sec';
+const safeName = n => (n || 'file').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').slice(0, 200) || 'file';
+
+function show(n) {
+  document.querySelectorAll('[data-view]').forEach(e => e.hidden = e.dataset.view !== n);
+  const h = document.querySelector('[data-view="' + n + '"] h2');
+  if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
+  window.scrollTo(0, 0);
+}
+function setState(t) { document.querySelectorAll('.state').forEach(e => e.textContent = t); $('live').textContent = t; }
+
+let wake = null;
+async function lockWake() { try { if (navigator.wakeLock) wake = await navigator.wakeLock.request('screen'); } catch {} }
+function unlockWake() { try { wake && wake.release(); } catch {} wake = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.connected && !S.finished) lockWake(); });
+
+function teardown() {
+  clearInterval(S.cd); clearTimeout(S.to); clearTimeout(S.exp); stopScan();
+  const conn = S.conn, peer = S.peer; S.conn = null; S.peer = null;
+  try { conn && conn.close(); } catch {}
+  try { peer && peer.destroy(); } catch {}
+  unlockWake();
+  (S.results || []).forEach(r => URL.revokeObjectURL(r.url));
+  S = { files: [] };
+  renderSel();
+}
+function showMsg(title, text, label, fn) {
+  $('mtitle').textContent = title; $('mtext').textContent = text;
+  $('mbtn').textContent = label || 'Try again';
+  $('mbtn').onclick = fn || (() => { teardown(); show('home'); });
+  $('live').textContent = title + '. ' + text;
+  show('msg');
+}
+function fail(title, text) { teardown(); showMsg(title, text); }
+
+/* ---------- file selection ---------- */
+function renderSel() {
+  const f = S.files, l = $('selList'); l.textContent = '';
+  f.forEach(x => { const li = document.createElement('li'), n = document.createElement('span'), s = document.createElement('span'); n.className = 'n'; n.textContent = x.name; s.className = 's'; s.textContent = fmt(x.size); li.append(n, s); l.append(li); });
+  $('selCount').textContent = f.length ? f.length + (f.length === 1 ? ' file selected' : ' files selected') : 'Nothing selected yet';
+  $('selSize').textContent = f.length ? fmt(f.reduce((a, x) => a + x.size, 0)) : '';
+  $('startShare').disabled = !f.length;
+}
+$('pickBtn').onclick = () => $('pick').click();
+$('pick').onchange = e => {
+  const list = [...e.target.files]; e.target.value = ''; $('serr').textContent = '';
+  if (!list.length) { $('serr').textContent = 'No files selected.'; return; }
+  const ok = []; let skipped = 0;
+  for (const f of list) { if (f.size === 0 || f.size > CFG.maxFileSize) skipped++; else ok.push(f); }
+  S.files = S.files.concat(ok).slice(0, CFG.maxFiles);
+  if (skipped) $('serr').textContent = skipped + ' file(s) skipped: empty or larger than ' + fmt(CFG.maxFileSize) + '.';
+  renderSel();
+};
+
+/* ---------- pairing (PeerJS) ---------- */
+const NOSERVER = ["Victus Share couldn't reach the pairing service. Check your internet connection and try again."];
+
+function makeSender(tries) {
+  const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1000000).padStart(6, '0');
+  const peer = new Peer(CFG.idPrefix + code, { config: CFG.peerConfig });
+  S.peer = peer; S.code = code;
+  peer.on('open', () => { if (S.peer === peer) showCode(code); });
+  peer.on('connection', conn => {
+    if (S.peer !== peer || S.conn) { conn.close(); return; }
+    S.conn = conn; wireConn(conn);
+    setState('Receiver connected. Negotiating connection');
+    clearInterval(S.cd); $('expiry').textContent = '';
+  });
+  peer.on('error', e => {
+    if (S.peer !== peer || S.connected) return;
+    if (e.type === 'unavailable-id' && tries < 5) { try { peer.destroy(); } catch {} return makeSender(tries + 1); }
+    fail("Can't reach pairing service", NOSERVER[0]);
+  });
+}
+function showCode(code) {
+  $('codeOut').textContent = code.slice(0, 3) + ' ' + code.slice(3);
+  const url = location.href.split('#')[0].split('?')[0] + '?code=' + code;
+  try { const q = qrcode(0, 'M'); q.addData(url); q.make(); $('qr').innerHTML = q.createSvgTag({ cellSize: 6, margin: 0, scalable: true }); }
+  catch { $('qr').textContent = 'QR unavailable. Use the code below.'; }
+  setState('Waiting for receiver');
+  const end = Date.now() + CFG.sessionSeconds * 1000;
+  S.cd = setInterval(() => { const s = Math.max(0, Math.round((end - Date.now()) / 1000)); $('expiry').textContent = 'Code expires in ' + Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }, 500);
+  S.exp = setTimeout(() => { if (!S.connected) fail('Session expired', 'Nobody joined in time. Start a new session.'); }, CFG.sessionSeconds * 1000);
+}
+function joinCode(c) {
+  const peer = new Peer({ config: CFG.peerConfig }); S.peer = peer;
+  S.to = setTimeout(() => { if (!S.connected) fail('Connection timed out', "The devices didn't connect within 25 seconds. Check both have internet access and try again. Strict networks may need a TURN relay."); }, 25000);
+  peer.on('open', () => {
+    if (S.peer !== peer) return;
+    setState('Negotiating connection');
+    const conn = peer.connect(CFG.idPrefix + c, { reliable: true, serialization: 'raw' });
+    S.conn = conn; wireConn(conn);
+  });
+  peer.on('error', e => {
+    if (S.peer !== peer || S.connected) return;
+    if (e.type === 'peer-unavailable') fail('Code not valid', "That code doesn't match an active session. It may have expired. Check the digits and try again.");
+    else fail("Can't reach pairing service", NOSERVER[0]);
+  });
+}
+function wireConn(conn) {
+  conn.on('open', () => {
+    if (S.conn !== conn) return;
+    S.connected = true; clearTimeout(S.to); clearTimeout(S.exp); clearInterval(S.cd);
+    setState('Connection established'); reportPath();
+    try { S.peer.disconnect(); } catch {}   // pairing service no longer needed
+    if (S.role === 'send') sendMeta(); else setState('Connection established. Waiting for sender');
+  });
+  conn.on('data', onData);
+  conn.on('close', () => { if (S.conn !== conn || S.finished) return; fail('Connection lost', 'The other device disconnected.'); });
+  conn.on('error', () => {});
+}
+async function reportPath() {
+  try {
+    const pc = S.conn.peerConnection, st = await pc.getStats(); let p;
+    st.forEach(r => { if (r.type === 'candidate-pair' && r.nominated && r.state === 'succeeded') p = r; });
+    if (!p) return;
+    const relay = [st.get(p.localCandidateId), st.get(p.remoteCandidateId)].some(c => c && c.candidateType === 'relay');
+    $('path').textContent = relay ? 'Route: via relay server (TURN)' : 'Route: direct, device to device';
+  } catch {}
+}
+const ctl = o => { if (S.conn && S.conn.open) S.conn.send(JSON.stringify(o)); };
+
+/* ---------- progress ---------- */
+function startXfer(title) {
+  S.base = 0; S.samples = []; S.lastUi = 0; S.idxShown = -1;
+  $('xtitle').textContent = title; show('xfer'); lockWake(); tick(0, 0, true);
+}
+function tick(idx, cur, force) {
+  const now = performance.now(), done = S.base + cur;
+  S.samples.push([now, done]); while (S.samples.length > 2 && now - S.samples[0][0] > 3000) S.samples.shift();
+  if (!force && now - S.lastUi < 100) return; S.lastUi = now;
+  const a = S.samples[0], b = S.samples[S.samples.length - 1], sp = b[0] > a[0] ? (b[1] - a[1]) / ((b[0] - a[0]) / 1000) : 0;
+  const pct = S.total ? Math.min(100, Math.floor(done / S.total * 100)) : 0;
+  $('xbar').style.width = pct + '%'; $('xbarw').setAttribute('aria-valuenow', pct); $('xpct').textContent = pct + '%';
+  $('xbytes').textContent = fmt(done) + ' / ' + fmt(S.total);
+  $('xspeed').textContent = 'Speed: ' + (sp > 0 ? fmt(sp) + '/s' : '—');
+  $('xeta').textContent = 'Estimated time: ' + (sp > 0 ? fmtT((S.total - done) / sp) : '—');
+  $('xname').textContent = S.meta[idx] ? S.meta[idx].name : '—';
+  $('xcount').textContent = Math.min(idx + 1, S.meta.length) + ' of ' + S.meta.length + ' files';
+  if (idx !== S.idxShown) { S.idxShown = idx; $('live').textContent = 'Transferring file ' + (idx + 1) + ' of ' + S.meta.length; }
+}
+
+/* ---------- sender ---------- */
+function sendMeta() {
+  S.meta = S.files.map(f => ({ name: f.name, size: f.size, type: f.type }));
+  S.total = S.meta.reduce((a, f) => a + f.size, 0);
+  ctl({ t: 'meta', files: S.meta }); setState('Waiting for receiver to accept');
+}
+async function sendAll() {
+  const conn = S.conn, dc = conn.dataChannel, CH = CFG.chunkSize, HIGH = CH * 16; let sent = 0;
+  for (let i = 0; i < S.files.length; i++) {
+    const f = S.files[i]; ctl({ t: 'start', i });
+    for (let off = 0; off < f.size; off += CH) {
+      if (S.cancelled || S.conn !== conn) return;
+      while (dc.bufferedAmount > HIGH && dc.readyState === 'open') await sleep(10);
+      if (dc.readyState !== 'open') throw new Error('closed');
+      const buf = await f.slice(off, Math.min(off + CH, f.size)).arrayBuffer();
+      conn.send(buf); sent += buf.byteLength;
+      S.base = sent - (off + buf.byteLength);
+      tick(i, Math.max(0, off + buf.byteLength - dc.bufferedAmount));
+    }
+    S.base = sent; ctl({ t: 'end', i });
+  }
+  ctl({ t: 'done' }); setState('Finishing up');
+}
+
+/* ---------- messages / receiver ---------- */
+async function onData(d) {
+  if (typeof d !== 'string') {
+    if (S.role !== 'recv' || !S.chunks) return;
+    S.chunks.push(d); S.got += d.byteLength; tick(S.idx, S.got); return;
+  }
+  let m; try { m = JSON.parse(d); } catch { return; }
+  if (S.role === 'send') {
+    if (m.t === 'ready') { startXfer('Sending'); setState('Transferring'); sendAll().catch(() => { if (S.conn && !S.cancelled) fail('Transfer interrupted', 'The transfer stopped before every file was sent. Try again.'); }); }
+    else if (m.t === 'complete') { S.finished = true; showDone(); }
+    else if (m.t === 'cancel') { teardown(); showMsg('Transfer cancelled', m.reason === 'storage' ? 'The receiving phone does not have enough free storage.' : 'The receiver cancelled the transfer.', 'Done'); }
+    return;
+  }
+  if (m.t === 'meta') {
+    const fl = Array.isArray(m.files) ? m.files : [];
+    if (!fl.length || fl.length > CFG.maxFiles || fl.some(f => typeof f.name !== 'string' || !(f.size >= 0) || f.size > CFG.maxFileSize)) { ctl({ t: 'cancel' }); return fail('Transfer refused', 'The sender offered too many files or a file that is too large.'); }
+    const used = new Set();
+    S.meta = fl.map(f => { let n = safeName(f.name); const dot = n.lastIndexOf('.'), stem = dot > 0 ? n.slice(0, dot) : n, ext = dot > 0 ? n.slice(dot) : ''; let k = 1; while (used.has(n.toLowerCase())) n = stem + ' (' + (k++) + ')' + ext; used.add(n.toLowerCase()); return { name: n, size: f.size, type: typeof f.type === 'string' ? f.type : '' }; });
+    S.total = S.meta.reduce((a, f) => a + f.size, 0); S.results = [];
+    try { if (navigator.storage && navigator.storage.estimate) { const e = await navigator.storage.estimate(); if (e.quota && e.quota - e.usage < S.total * 1.05) { ctl({ t: 'cancel', reason: 'storage' }); return fail('Not enough storage', 'This phone may not have room for ' + fmt(S.total) + '. Free up space and try again.'); } } } catch {}
+    startXfer('Receiving'); setState('Transferring'); ctl({ t: 'ready' });
+  } else if (m.t === 'start') { S.idx = m.i; S.chunks = []; S.got = 0; }
+  else if (m.t === 'end') {
+    const meta = S.meta[m.i];
+    if (!meta || S.got !== meta.size) return fail('Transfer incomplete', 'A file arrived damaged or incomplete. Try again.');
+    try { const blob = new Blob(S.chunks, { type: meta.type || 'application/octet-stream' }); S.results.push({ name: meta.name, size: meta.size, url: URL.createObjectURL(blob) }); }
+    catch { return fail('Not enough memory', 'This browser ran out of memory saving a file. Send fewer or smaller files at a time.'); }
+    S.chunks = null; S.base += meta.size;
+  } else if (m.t === 'done') { S.finished = true; ctl({ t: 'complete' }); showDone(); }
+  else if (m.t === 'cancel') { teardown(); showMsg('Transfer cancelled', 'The sender cancelled the transfer.', 'Done'); }
+}
+
+/* ---------- done ---------- */
+function showDone() {
+  unlockWake(); const recv = S.role === 'recv';
+  $('doneInfo').textContent = S.meta.length + (S.meta.length === 1 ? ' file' : ' files') + ' · ' + fmt(S.total);
+  const l = $('doneList'); l.textContent = '';
+  if (recv) S.results.forEach(r => { const li = document.createElement('li'), n = document.createElement('span'), s = document.createElement('span'), b = document.createElement('button'); n.className = 'n'; n.textContent = r.name; s.className = 's'; s.textContent = fmt(r.size); b.className = 'btn'; b.textContent = 'Save'; b.setAttribute('aria-label', 'Save ' + r.name); b.onclick = () => dl(r); li.append(n, s, b); l.append(li); });
+  $('dlAll').hidden = !recv; $('recvNote').hidden = !recv;
+  $('more').textContent = recv ? 'Receive more files' : 'Share more files';
+  $('live').textContent = 'Transfer complete'; show('done');
+}
+function dl(r) { const a = document.createElement('a'); a.href = r.url; a.download = r.name; document.body.appendChild(a); a.click(); a.remove(); }
+$('dlAll').onclick = async () => { for (const r of S.results) { dl(r); await sleep(600); } };
+$('doneBtn').onclick = () => { teardown(); show('home'); };
+$('more').onclick = () => { const r = S.role; teardown(); r === 'recv' ? goRecv() : show('send'); };
+
+/* ---------- actions ---------- */
+function startSharing() {
+  if (!S.files.length) return;
+  S.role = 'send'; show('wait'); setState('Creating session'); makeSender(0);
+}
+function join(raw) {
+  const c = (raw || '').replace(/\D/g, ''); $('rerr').textContent = '';
+  if (c.length !== 6) { $('rerr').textContent = 'Enter all 6 digits of the code.'; return; }
+  stopScan(); if (S.peer) teardown(); S.role = 'recv'; setState('Connecting to sender'); joinCode(c);
+}
+function goRecv() { if (S.peer) teardown(); show('recv'); }
+$('goSend').onclick = () => show('send');
+$('goRecv').onclick = goRecv;
+$('startShare').onclick = startSharing;
+$('connectBtn').onclick = () => join($('code').value);
+$('code').oninput = e => { const d = e.target.value.replace(/\D/g, '').slice(0, 6); e.target.value = d.length > 3 ? d.slice(0, 3) + ' ' + d.slice(3) : d; };
+$('code').onkeydown = e => { if (e.key === 'Enter') join(e.target.value); };
+document.querySelectorAll('[data-home]').forEach(b => b.onclick = () => { teardown(); show('home'); });
+$('cancelX').onclick = () => { S.cancelled = true; ctl({ t: 'cancel' }); teardown(); showMsg('Transfer cancelled', 'No more files will be transferred.', 'Done'); };
+
+/* ---------- QR scanning ---------- */
+const codeFrom = t => { try { const c = new URL(t).searchParams.get('code'); if (/^\d{6}$/.test(c || '')) return c; } catch {} return /^\d{6}$/.test(t) ? t : null; };
+function stopScan() { clearTimeout(S.scanT); if (S.stream) S.stream.getTracks().forEach(t => t.stop()); S.stream = null; const b = $('scanbox'); if (b) b.hidden = true; }
+$('stopScanBtn').onclick = stopScan;
+$('scanBtn').onclick = async () => {
+  $('rerr').textContent = '';
+  if (!('BarcodeDetector' in window) || !navigator.mediaDevices) { $('rerr').textContent = "This browser can't scan QR codes here. Type the code, or scan with your camera app."; return; }
+  try {
+    const det = new BarcodeDetector({ formats: ['qr_code'] });
+    const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    S.stream = st; const v = $('cam'); v.srcObject = st; await v.play(); $('scanbox').hidden = false; setState('Point the camera at the QR code');
+    const loop = async () => {
+      if (S.stream !== st) return;
+      try { for (const b of await det.detect(v)) { const c = codeFrom(b.rawValue); if (c) { stopScan(); $('code').value = c.slice(0, 3) + ' ' + c.slice(3); return join(c); } } } catch {}
+      S.scanT = setTimeout(loop, 250);
+    }; loop();
+  } catch { stopScan(); $('rerr').textContent = 'Camera access was blocked. Allow the camera in browser settings, or type the code.'; }
+};
+
+/* ---------- init ---------- */
+(() => {
+  if (!window.RTCPeerConnection || !window.Blob || typeof Peer === 'undefined') { $('unsupported').hidden = false; $('goSend').disabled = $('goRecv').disabled = true; return; }
+  const c = new URLSearchParams(location.search).get('code');
+  if (c && /^\d{6}$/.test(c)) { history.replaceState(null, '', location.pathname); show('recv'); $('code').value = c.slice(0, 3) + ' ' + c.slice(3); join(c); }
+})();
+})();
+</script>
+</body>
+</html>
